@@ -1,9 +1,7 @@
 // static/js/main.js
 
 // --- HARDCODED PLACEMENT COORDINATES ---
-// Change these X and Y values to set the placement position of the signature.
-// (0, 0) is the top-left corner of the original contract image.
-const PLACEMENT_X = 65;
+const PLACEMENT_X = 60;
 const PLACEMENT_Y = 1460;
 
 // --- DOM Element References ---
@@ -11,6 +9,7 @@ const contractInput = document.getElementById('contract-input');
 const contractImage = document.getElementById('contract-image');
 const placeSignatureBtn = document.getElementById('place-signature-btn');
 const saveFinalBtn = document.getElementById('save-final-btn');
+const printFinalBtn = document.getElementById('print-final-btn');
 const statusDiv = document.getElementById('status');
 const createSignatureBtn = document.getElementById('create-signature-btn');
 const signatureOverlay = document.getElementById('signature-overlay');
@@ -25,7 +24,7 @@ let contractB64 = null;
 let finalImageB64 = null;
 let savedSignature = { b64: null, width: 0, height: 0 };
 
-// --- Functions and Event Handlers ---
+// --- Event Handlers for Creating/Loading Signatures (No Changes Here) ---
 
 function resizeCanvas() {
     canvas.width = window.innerWidth * 0.8;
@@ -55,8 +54,8 @@ window.addEventListener('keydown', (e) => {
             return;
         }
 
-        const TARGET_SIGNATURE_WIDTH = 200;
-        const TARGET_SIGNATURE_HEIGHT = 100;
+        const TARGET_SIGNATURE_WIDTH = 400;
+        const TARGET_SIGNATURE_HEIGHT = 200;
         const largeImageB64 = signaturePad.toDataURL('image/png');
         const img = new Image();
         img.src = largeImageB64;
@@ -108,12 +107,15 @@ saveSignatureBtn.addEventListener('click', () => {
     link.click();
 });
 
+// --- Core Application Logic ---
+
 contractInput.addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     statusDiv.textContent = 'Loading contract...';
     saveFinalBtn.disabled = true;
+    printFinalBtn.disabled = true;
     finalImageB64 = null;
 
     contractB64 = await readFileAsBase64(file);
@@ -144,22 +146,54 @@ placeSignatureBtn.addEventListener('click', async () => {
         finalImageB64 = result.image;
         contractImage.src = finalImageB64;
         saveFinalBtn.disabled = false;
-        statusDiv.textContent = 'Signature placed! Ready to save.';
+        printFinalBtn.disabled = false;
+        statusDiv.textContent = 'Signature placed! Ready to save or print.';
     } else {
         statusDiv.textContent = `Error: ${result.message}`;
-        contractImage.src = contractB64; // Restore original on error
+        contractImage.src = contractB64;
         placeSignatureBtn.disabled = false;
     }
 });
 
+// --- REVERTED: Simple PNG download functionality ---
 saveFinalBtn.addEventListener('click', () => {
     if (!finalImageB64) return;
     const link = document.createElement('a');
     link.href = finalImageB64;
     link.download = 'contract_signed.png';
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
 });
 
+// --- REVERTED: Simple and reliable print functionality ---
+printFinalBtn.addEventListener('click', () => {
+    if (!finalImageB64) return;
+
+    const printFrame = document.createElement('iframe');
+    printFrame.style.visibility = 'hidden';
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(`
+        <html>
+        <body style="margin: 0;" onload="window.focus(); window.print()">
+            <img src="${finalImageB64}" style="width: 100%; height: auto;"/>
+        </body>
+        </html>
+    `);
+    frameDoc.close();
+
+    setTimeout(() => {
+        document.body.removeChild(printFrame);
+    }, 500);
+});
+
+// --- Helper to read file ---
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
